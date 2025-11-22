@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Users CRUD - JSONPlaceholder</title>
+
+  <!-- Bootstrap -->
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <!-- Axios -->
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.7.7/dist/axios.min.js"></script>
+
+  <style>
+    body { background: #0b1020; color: #e6e9f2; }
+    .card { background: #121833; border: 1px solid #1e2a55; }
+    .form-control, .form-select {
+      background: #0f1530; border: 1px solid #223063; color: #e6e9f2;
+    }
+    .form-control::placeholder { color: #93a0c9; }
+    .table { color: #e6e9f2; }
+    .table thead th { color: #b9c2e6; border-color: #223063; }
+    .table td { border-color: #223063; vertical-align: middle; }
+    .btn-outline-light { border-color: #33417a; }
+    .pagination .page-link {
+      background: #0f1530; border: 1px solid #223063; color: #e6e9f2;
+    }
+    .pagination .page-item.active .page-link {
+      background: #3b82f6; border-color: #3b82f6;
+    }
+    .muted { color: #9bb0e5; }
+    .spinner-border { width: 1rem; height: 1rem; }
+  </style>
+</head>
+
+<body class="py-4">
+<div class="container">
+  <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <h1 class="h3 mb-0">Users CRUD</h1>
+    <div class="muted">Data from JSONPlaceholder (mock API)</div>
+  </div>
+
+  <!-- Alerts -->
+  <div id="alertBox"></div>
+
+  <div class="row g-3">
+    <!-- Create Form -->
+    <div class="col-lg-4">
+      <div class="card p-3">
+        <h2 class="h5 mb-3">Add New User</h2>
+        <form id="createForm">
+          <div class="mb-2">
+            <label class="form-label">Name</label>
+            <input id="nameInput" class="form-control" placeholder="Jane Doe" required />
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Email</label>
+            <input id="emailInput" type="email" class="form-control" placeholder="jane@mail.com" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Phone</label>
+            <input id="phoneInput" class="form-control" placeholder="1-770-736-8031" required />
+          </div>
+          <button id="createBtn" class="btn btn-primary w-100" type="submit">
+            <span class="btn-text">Create</span>
+            <span class="btn-spinner d-none ms-2 spinner-border spinner-border-sm"></span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Table + Search + Pagination -->
+    <div class="col-lg-8">
+      <div class="card p-3">
+        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-2">
+          <h2 class="h5 mb-0">Users</h2>
+
+          <div class="d-flex gap-2">
+            <input id="searchInput" class="form-control" placeholder="Search by name..." />
+            <select id="pageSizeSelect" class="form-select" style="width:auto">
+              <option value="5">5 / page</option>
+              <option value="7" selected>7 / page</option>
+              <option value="10">10 / page</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead>
+              <tr>
+                <th style="width: 24%;">Name</th>
+                <th style="width: 28%;">Email</th>
+                <th style="width: 24%;">Phone</th>
+                <th style="width: 24%;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="usersTbody"></tbody>
+          </table>
+        </div>
+
+        <div class="d-flex align-items-center justify-content-between mt-2">
+          <div id="countInfo" class="muted small"></div>
+          <nav>
+            <ul id="pagination" class="pagination pagination-sm mb-0"></ul>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content card">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">Edit User</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <form id="editForm">
+        <div class="modal-body pt-0">
+          <input id="editId" type="hidden" />
+
+          <div class="mb-2">
+            <label class="form-label">Name</label>
+            <input id="editName" class="form-control" required />
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Email</label>
+            <input id="editEmail" type="email" class="form-control" required />
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Phone</label>
+            <input id="editPhone" class="form-control" required />
+          </div>
+        </div>
+
+        <div class="modal-footer border-0">
+          <button class="btn btn-outline-light" data-bs-dismiss="modal" type="button">Cancel</button>
+          <button id="saveEditBtn" class="btn btn-success" type="submit">
+            <span class="btn-text">Save</span>
+            <span class="btn-spinner d-none ms-2 spinner-border spinner-border-sm"></span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap JS (modal) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  const API = "https://jsonplaceholder.typicode.com/users";
+
+  let users = [];
+  let currentPage = 1;
+  let pageSize = 7;
+  let editModal;
+
+  // ---------- Helpers ----------
+  const $ = (id) => document.getElementById(id);
+
+  function showAlert(message, type = "success") {
+    $("alertBox").innerHTML = `
+      <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    `;
+  }
+
+  function setButtonLoading(btnId, isLoading) {
+    const btn = $(btnId);
+    btn.querySelector(".btn-text").classList.toggle("d-none", isLoading);
+    btn.querySelector(".btn-spinner").classList.toggle("d-none", !isLoading);
+    btn.disabled = isLoading;
+  }
+
+  function getFilteredUsers() {
+    const q = $("searchInput").value.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter(u => u.name.toLowerCase().includes(q));
+  }
+
+  // ---------- Render ----------
+  function render() {
+    const list = getFilteredUsers();
+
+    const total = list.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    currentPage = Math.min(currentPage, totalPages);
+
+    const start = (currentPage - 1) * pageSize;
+    const pageItems = list.slice(start, start + pageSize);
+
+    $("usersTbody").innerHTML = pageItems.map(u => `
+      <tr>
+        <td>${u.name}</td>
+        <td>${u.email}</td>
+        <td>${u.phone}</td>
+        <td class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-light" onclick="openEdit(${u.id})">Edit</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${u.id})">Delete</button>
+        </td>
+      </tr>
+    `).join("") || `
+      <tr><td colspan="4" class="text-center muted py-4">No users found.</td></tr>
+    `;
+
+    $("countInfo").textContent =
+      `Showing ${pageItems.length} of ${total} users (page ${currentPage}/${totalPages})`;
+
+    $("pagination").innerHTML = buildPagination(totalPages);
+  }
+
+  function buildPagination(totalPages) {
+    const makeBtn = (label, page, disabled=false, active=false) => `
+      <li class="page-item ${disabled ? "disabled" : ""} ${active ? "active" : ""}">
+        <button class="page-link" ${disabled ? "disabled" : ""} onclick="goPage(${page})">
+          ${label}
+        </button>
+      </li>`;
+
+    let html = "";
+    html += makeBtn("«", 1, currentPage === 1);
+    html += makeBtn("‹", currentPage - 1, currentPage === 1);
+
+    const windowSize = 5;
+    let s = Math.max(1, currentPage - Math.floor(windowSize/2));
+    let e = Math.min(totalPages, s + windowSize - 1);
+    s = Math.max(1, e - windowSize + 1);
+
+    for (let p = s; p <= e; p++) {
+      html += makeBtn(p, p, false, p === currentPage);
+    }
+
+    html += makeBtn("›", currentPage + 1, currentPage === totalPages);
+    html += makeBtn("»", totalPages, currentPage === totalPages);
+    return html;
+  }
+
+  window.goPage = (p) => { currentPage = p; render(); };
+
+  // ---------- API Calls ----------
+  async function fetchUsers() {
+    try {
+      $("usersTbody").innerHTML = `
+        <tr><td colspan="4" class="text-center py-4 muted">Loading users...</td></tr>
+      `;
+      const res = await axios.get(API);
+      users = res.data;
+      render();
+    } catch (err) {
+      showAlert("Failed to load users.", "danger");
+      console.error(err);
+    }
+  }
+
+  async function createUser(payload) {
+    try {
+      setButtonLoading("createBtn", true);
+
+      const res = await axios.post(API, payload);
+
+      // mock API => update UI manually
+      const newUser = { ...res.data, id: Date.now() };
+      users.unshift(newUser);
+
+      $("createForm").reset();
+      currentPage = 1;
+      render();
+      showAlert("User created (locally).");
+    } catch (err) {
+      showAlert("Create failed.", "danger");
+      console.error(err);
+    } finally {
+      setButtonLoading("createBtn", false);
+    }
+  }
+
+  async function updateUser(id, payload) {
+    try {
+      setButtonLoading("saveEditBtn", true);
+
+      await axios.put(`${API}/${id}`, payload);
+
+      // update UI manually
+      users = users.map(u => u.id === id ? { ...u, ...payload } : u);
+
+      editModal.hide();
+      render();
+      showAlert("User updated (locally).");
+    } catch (err) {
+      showAlert("Update failed.", "danger");
+      console.error(err);
+    } finally {
+      setButtonLoading("saveEditBtn", false);
+    }
+  }
+
+  window.deleteUser = async (id) => {
+    const ok = confirm("Delete this user?");
+    if (!ok) return;
+
+    try {
+      await axios.delete(`${API}/${id}`);
+
+      // update UI manually
+      users = users.filter(u => u.id !== id);
+      render();
+      showAlert("User deleted (locally).");
+    } catch (err) {
+      showAlert("Delete failed.", "danger");
+      console.error(err);
+    }
+  };
+
+  // ---------- Edit Modal ----------
+  window.openEdit = (id) => {
+    const user = users.find(u => u.id === id);
+    if (!user) return;
+
+    $("editId").value = user.id;
+    $("editName").value = user.name;
+    $("editEmail").value = user.email;
+    $("editPhone").value = user.phone;
+
+    editModal.show();
+  };
+
+  // ---------- Events ----------
+  $("createForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    createUser({
+      name: $("nameInput").value.trim(),
+      email: $("emailInput").value.trim(),
+      phone: $("phoneInput").value.trim(),
+    });
+  });
+
+  $("editForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    updateUser(Number($("editId").value), {
+      name: $("editName").value.trim(),
+      email: $("editEmail").value.trim(),
+      phone: $("editPhone").value.trim(),
+    });
+  });
+
+  $("searchInput").addEventListener("input", () => {
+    currentPage = 1;
+    render();
+  });
+
+  $("pageSizeSelect").addEventListener("change", (e) => {
+    pageSize = Number(e.target.value);
+    currentPage = 1;
+    render();
+  });
+
+  // ---------- Init ----------
+  document.addEventListener("DOMContentLoaded", () => {
+    // ✅ fix lỗi modal: KHÔNG dùng "#editModal"
+    editModal = new bootstrap.Modal($("editModal"));
+    fetchUsers();
+  });
+</script>
+</body>
+</html>
